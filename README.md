@@ -31,3 +31,30 @@ make migrate
 
 # smoke test
 curl http://localhost:8000/health
+## Environment Setup
+
+1. **Copy environment file:**
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Update your OpenAI API key in `.env`:**
+   ```bash
+   # Get your API key from: https://platform.openai.com/api-keys
+   OPENAI_API_KEY=your-actual-openai-api-key-here
+   ```
+
+3. **Start the system:**
+   ```bash
+   make dev
+   ```
+
+4. **Initialize database (first time only):**
+   ```bash
+   make init-db
+   ```
+
+## Security Note
+- **Never commit `.env` files to git** - they contain sensitive API keys
+- Use `.env.example` for documentation and sharing
+- Update `.env` with your actual credentials

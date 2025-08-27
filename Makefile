@@ -1,4 +1,4 @@
-.PHONY: dev stop logs migrate migrate-all psql psql-docker ftscheck minio health
+.PHONY: dev stop logs migrate migrate-all init-db extensions psql psql-docker ftscheck minio health
 
 DB_URL ?= postgresql://postgres:postgres@localhost:5432/mindvault
 
@@ -13,19 +13,17 @@ stop:
 logs:
 	docker compose -f docker-compose.dev.yml logs -f
 
+extensions:
+	docker compose -f docker-compose.dev.yml exec db psql -U postgres -d mindvault -f /app/scripts/extensions.sql
+
 migrate:
-	-psql "$(DB_URL)" -f scripts/core.sql || true
-	-psql "$(DB_URL)" -f scripts/tags_qlog.sql || true
+	psql "$(DB_URL)" -v ON_ERROR_STOP=1 -f scripts/complete_init.sql
 
 migrate-all:
-	psql "$(DB_URL)" -v ON_ERROR_STOP=1 -f scripts/init.sql
-	psql "$(DB_URL)" -v ON_ERROR_STOP=1 -f scripts/patch_2025_08_24_qresults.sql
+	psql "$(DB_URL)" -v ON_ERROR_STOP=1 -f scripts/complete_init.sql
 
-patch-qresults:
-	psql "$(DB_URL)" -v ON_ERROR_STOP=1 -f scripts/patch_2025_08_24_qresults.sql
-
-patch-content-hash:
-	psql "$(DB_URL)" -v ON_ERROR_STOP=1 -f scripts/patch_2025_08_24_content_hash.sql
+init-db:
+	docker compose -f docker-compose.dev.yml exec db psql -U postgres -d mindvault -f /app/scripts/complete_init.sql
 
 psql:
 	psql "$(DB_URL)"
