@@ -19,13 +19,14 @@ def health():
 
 
 # Routers
-from .routers import search, ask, index, ingest  # noqa: E402
+from .routers import search, ask, index, ingest, agent  # noqa: E402
 app.include_router(search.router)
 app.include_router(ask.router)
 app.include_router(index.router)
 app.include_router(ingest.router)
+app.include_router(agent.router)
 
 
 @app.get("/")
 def root():
-    return JSONResponse({"ok": True, "endpoints": ["/health", "/search", "/ask", "/index", "/ingest"]})
+    return JSONResponse({"ok": True, "endpoints": ["/health", "/search", "/ask", "/index", "/ingest", "/agent"]})
