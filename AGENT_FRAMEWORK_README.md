@@ -10,16 +10,43 @@ This document describes the newly added Agent Framework to MindVault, focusing o
 - `get(name: str) -> Callable | None` - Get an agent function by name
 - `list_agents()` - Get all registered agents
 
-### 2. Search Agent (`api/agents/search_local.py`)
+### 2. Search Agents
+
+#### 2.1. Latest From Agent (`api/agents/search_local.py`)
 - Implements `search.latest_from` agent
 - **Function signature:** `def run(params: dict) -> dict`
 - **Accepted params:**
-  - `sender` (optional): Filter by sender name (ILIKE search in title/preview/plain_text/from_name/display_name)
-  - `domain` (optional): Filter by domain (LIKE search in source_url or from_email)
+  - `sender` (optional): Filter by sender name (ILIKE search in metadata and content)
+  - `domain` (optional): Filter by domain (LIKE search in source_url or metadata)
   - `limit` (optional): Max results (default 5, capped at 50)
+  - `date_from`/`date_to` (optional): ISO datetime filters
+  - `language` (optional): Language for text search config ("tr" or "en")
 - **Returns:** `{"items": [{"id": str, "title": str|null, "ts": iso8601|null, "provider": str|null, "url": str|null}]}`
-- Uses existing DB connection pattern (psycopg2 with DATABASE_URL)
-- Automatically registers itself at module import time
+
+#### 2.2. General Search Agent (`api/agents/search_find.py`)
+- Implements `search.find` agent
+- **Function signature:** `def run(params: dict) -> dict`
+- **Accepted params:**
+  - `keywords` (optional): List of search terms/phrases
+  - `query` (optional): Single query string (alternative to keywords)
+  - `limit` (optional): Max results (default 10, capped at 200)
+  - `offset` (optional): Pagination offset (default 0)
+  - `tags` (optional): Hard filter tags (AND ANY)
+  - `boost_tags` (optional): Soft boost tags (scoring boost only)
+  - `date_from`/`date_to` (optional): ISO datetime filters
+  - `language` (optional): Language for text search config
+  - `decay_days` (optional): Time decay window (default 7, max 30)
+  - `highlight` (optional): Enable highlighting (default false)
+- **Returns:** `{"items": [...], "total": int, "has_more": bool, "next_offset": int|null}`
+- **Features:**
+  - Hybrid search (BM25 + vector similarity)
+  - Tag-based filtering and boosting
+  - Time decay scoring
+  - Deduplication
+  - Pagination support
+  - Highlighting support
+
+Both agents use existing DB connection pattern and automatically register themselves at module import time.
 
 ### 3. Agent Router (`api/routers/agent.py`)
 - FastAPI router with prefix="/agent", tags=["agent"]
@@ -92,7 +119,54 @@ curl -s http://localhost:8000/agent/act -H "Content-Type: application/json" \
 
 **Expected:** Same as Test 1 but with `"limit": 3` in params_used.
 
-### Test 3: Unrecognized query (fallback)
+### Test 3: General search (search.find)
+```bash
+curl -s http://localhost:8000/agent/act -H "Content-Type: application/json" \
+  -d '{"text":"proje raporu ara"}'
+```
+
+**Expected response:**
+```json
+{
+  "intent": "search.find",
+  "params_used": {
+    "keywords": ["proje", "raporu"],
+    "language": "tr",
+    "limit": 5
+  },
+  "result": {
+    "items": [...],
+    "total": 1807,
+    "has_more": true,
+    "next_offset": 5
+  }
+}
+```
+
+### Test 4: English keyword search
+```bash
+curl -s http://localhost:8000/agent/act -H "Content-Type: application/json" \
+  -d '{"text":"search for meeting notes about quarterly review"}'
+```
+
+**Expected response:**
+```json
+{
+  "intent": "search.find", 
+  "params_used": {
+    "keywords": ["meeting", "notes", "quarterly", "review"],
+    "language": "en",
+    "limit": 5
+  },
+  "result": {
+    "items": [...],
+    "total": 1804,
+    "has_more": true
+  }
+}
+```
+
+### Test 5: Unrecognized query (fallback)
 ```bash
 curl -s http://localhost:8000/agent/act -H "Content-Type: application/json" \
   -d '{"text":"nonsense query"}'

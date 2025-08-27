@@ -166,6 +166,74 @@ class TestAgentSearch:
         assert "result" in data
         assert "items" in data["result"]
     
+    def test_search_find_general_query(self):
+        """Test search.find agent with general search query."""
+        response = client.post(
+            "/agent/act",
+            json={"text": "proje raporu ara"}
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Check intent and parameters
+        assert data["intent"] == "search.find"
+        assert "keywords" in data["params_used"]
+        assert isinstance(data["params_used"]["keywords"], list)
+        assert data["params_used"]["language"] == "tr"
+        
+        # Check result structure
+        assert "result" in data
+        assert "items" in data["result"]
+        assert "total" in data["result"]
+        assert "has_more" in data["result"]
+        assert isinstance(data["result"]["items"], list)
+    
+    def test_search_find_english_keywords(self):
+        """Test search.find with English keyword extraction."""
+        response = client.post(
+            "/agent/act",
+            json={"text": "search for meeting notes about quarterly review"}
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Check intent and parameters
+        assert data["intent"] == "search.find"
+        assert "keywords" in data["params_used"]
+        assert data["params_used"]["language"] == "en"
+        
+        # Check that keywords were extracted
+        keywords = data["params_used"]["keywords"]
+        assert isinstance(keywords, list)
+        assert len(keywords) > 0
+        
+        # Check result structure
+        assert "result" in data
+        assert "items" in data["result"]
+        assert isinstance(data["result"]["items"], list)
+    
+    def test_search_find_date_window(self):
+        """Test search.find with date window functionality."""
+        response = client.post(
+            "/agent/act",
+            json={"text": "son 7 günde gelen belgeler"}
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Check intent and date_from parameter
+        assert data["intent"] == "search.find"
+        assert "date_from" in data["params_used"]
+        assert data["params_used"]["language"] == "tr"
+        
+        # Check result structure
+        assert "result" in data
+        assert "items" in data["result"]
+        assert "total" in data["result"]
+    
     def test_request_with_optional_fields(self):
         """Test request with optional thread_id and confirm fields."""
         response = client.post(
