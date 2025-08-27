@@ -14,6 +14,25 @@ backups/
 *.swp
 *.swo
 
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+
+# Temporary files
+*.tmp
+*.temp
+test.txt
+new*.json
+
 # OS files
 .DS_Store
 Thumbs.db
