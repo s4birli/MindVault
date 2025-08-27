@@ -1,3 +1,4 @@
 n8n/.n8n/*.sqlite*
 n8n/.n8n/*.log
 backups/
+.env
