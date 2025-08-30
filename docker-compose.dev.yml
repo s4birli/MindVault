@@ -64,6 +64,19 @@ services:
       minio:
         condition: service_started
 
+  frontend:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+    container_name: mindvault_frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - api
+    restart: unless-stopped
+
   n8n:
     image: n8nio/n8n:latest
     ports:
