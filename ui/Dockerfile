@@ -1,26 +1,18 @@
-# Use the official Node.js image
-FROM node:18-alpine
-
-# Set the working directory
+# ---- build stage ----
+FROM node:20-alpine AS builder
 WORKDIR /app
-
-# Copy package.json and package-lock.json (if available)
 COPY package*.json ./
-
-# Install dependencies
-RUN npm ci --only=production
-
-# Copy the rest of the application code
+RUN npm ci
 COPY . .
-
-# Set environment variable for API URL
-ENV NEXT_PUBLIC_API_URL=http://localhost:8000
-
-# Build the Next.js application
 RUN npm run build
 
-# Expose the port the app runs on
+# ---- run stage ----
+FROM node:20-alpine
+WORKDIR /app
+ENV NODE_ENV=production
+# Next.js standalone output:
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/public ./public
 EXPOSE 3000
-
-# Start the application
-CMD ["npm", "start"]
+CMD ["node", "server.js"]
