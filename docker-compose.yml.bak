@@ -1,0 +1,25 @@
+services:
+  mindvault_ui:
+    image: mindvault-ui
+    container_name: mindvault_ui
+    ports:
+      - "3000:3000"
+    networks:
+      - mindvault_net
+
+  mindvault_tunnel:
+    image: cloudflare/cloudflared:2025.8.1
+    container_name: mindvault_tunnel
+    command: tunnel --config /etc/cloudflared/config.yml run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN}
+    volumes:
+      - ~/.cloudflared:/etc/cloudflared
+    depends_on:
+      - mindvault_ui
+    networks:
+      - mindvault_net
+
+networks:
+  mindvault_net:
+    driver: bridge

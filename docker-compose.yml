@@ -1,103 +1,52 @@
-version: "3.9"
-
 services:
-  db:
-    image: ankane/pgvector:latest
-    container_name: mindvault_db
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: mindvault
-    ports:
-      - "5432:5432"
-    volumes:
-      - ./scripts:/app/scripts
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d mindvault"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-
-  minio:
-    image: minio/minio:latest
-    container_name: mindvault_minio
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    ports:
-      - "9000:9000" # S3 endpoint
-      - "9001:9001" # MinIO console
-    volumes:
-      - minio_data:/data
-
-  api:
-    image: python:3.11-slim
-    container_name: mindvault_api
-    working_dir: /app
-    volumes:
-      - ./:/app
-    env_file:
-      - .env
-    command: >
-      bash -lc "
-      pip install --no-cache-dir fastapi uvicorn[standard] psycopg2-binary boto3 openai numpy langdetect
-      && python -c 'import os; os.makedirs(\"api\", exist_ok=True)'
-      && uvicorn api.main:app --host 0.0.0.0 --port 8000
-      "
-    environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - S3_ENDPOINT=${S3_ENDPOINT}
-      - S3_BUCKET=${S3_BUCKET}
-      - S3_REGION=${S3_REGION}
-      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID}
-      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY}
-      - API_KEY=${API_KEY}
-      - ENABLE_OAI_TAGS=${ENABLE_OAI_TAGS}
-      - TAG_MODEL=${TAG_MODEL}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-    ports:
-      - "8000:8000"
-    depends_on:
-      db:
-        condition: service_healthy
-      minio:
-        condition: service_started
-
-  frontend:
-    build:
-      context: ./ui
-      dockerfile: Dockerfile
-    container_name: mindvault_frontend
+  mindvault_ui:
+    build: ./ui
+    container_name: mindvault_ui
     ports:
       - "3000:3000"
-    environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
-    depends_on:
-      - api
-    restart: unless-stopped
+    networks:
+      - mindvault_net
 
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: mindvault_tunnel
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARED_TOKEN}
-    environment:
-      - TUNNEL_TRANSPORT_PROTOCOL=auto
-    restart: unless-stopped
-    networks: [mindvault]
-
-  n8n:
+  mindvault_n8n:
     image: n8nio/n8n:latest
+    container_name: mindvault_n8n
     ports:
       - "5678:5678"
     environment:
-      - N8N_HOST=${N8N_HOST}
-      - N8N_PORT=${N8N_PORT}
-      - WEBHOOK_URL=${WEBHOOK_URL}
-      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE}
-      # Local dev için default SQLite yeterli; kalıcılık için volume ekliyoruz
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - N8N_HOST=n8n.mindvault.codes
+      - N8N_EDITOR_BASE_URL=https://n8n.mindvault.codes
+      - WEBHOOK_URL=https://n8n.mindvault.codes
+      - GENERIC_TIMEZONE=Europe/London
     volumes:
       - ./n8n/.n8n:/home/node/.n8n
+    networks:
+      - mindvault_net
     restart: unless-stopped
-volumes:
-  minio_data:
+
+  mindvault_api:
+    build: ./api
+    container_name: mindvault_api
+    ports:
+      - "8000:8000"
+    networks:
+      - mindvault_net
+    restart: unless-stopped
+  mindvault_tunnel:
+    image: cloudflare/cloudflared:2025.8.1
+    container_name: mindvault_tunnel
+    command: tunnel --config /etc/cloudflared/config.yml run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN}
+    volumes:
+      - ~/.cloudflared:/etc/cloudflared
+    depends_on:
+      - mindvault_ui
+      - mindvault_n8n
+    networks:
+      - mindvault_net
+
+networks:
+  mindvault_net:
+    driver: bridge
