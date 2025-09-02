@@ -14,22 +14,22 @@ logs:
 	docker compose -f docker-compose.dev.yml logs -f
 
 extensions:
-	docker compose -f docker-compose.dev.yml exec db psql -U postgres -d mindvault -f /app/scripts/extensions.sql
+	docker compose -f docker-compose.yml exec db psql -U postgres -d mindvault -f /app/scripts/extensions.sql
 
 migrate:
 	psql "$(DB_URL)" -v ON_ERROR_STOP=1 -f scripts/complete_init.sql
 
 migrate-all:
-	psql "$(DB_URL)" -v ON_ERROR_STOP=1 -f scripts/complete_init.sql
+	psql "$(DB_URL)" -v ON_ERROR_STOP=1 -f scripts/db_script_init.sql
 
 init-db:
-	docker compose -f docker-compose.dev.yml exec db psql -U postgres -d mindvault -f /app/scripts/complete_init.sql
+	docker compose -f docker-compose.yml exec db psql -U postgres -d mindvault -f /app/scripts/db_script_init.sql
 
 psql:
 	psql "$(DB_URL)"
 
 psql-docker:
-	docker compose -f docker-compose.dev.yml exec db psql -U postgres -d mindvault
+	docker compose -f docker-compose.yml exec db psql -U postgres -d mindvault
 
 
 DATE := $(shell date +%F_%H%M%S)

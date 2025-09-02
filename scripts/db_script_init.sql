@@ -1,11 +1,4 @@
 -- =========================================
--- EXTENSIONS
--- =========================================
-CREATE EXTENSION IF NOT EXISTS vector;          -- pgvector (semantic search)
-CREATE EXTENSION IF NOT EXISTS pg_trgm;         -- trigram (fuzzy ad eşleşmeleri)
-CREATE EXTENSION IF NOT EXISTS postgis;     -- geo (isteğe bağlı)
-
--- =========================================
 -- ENTITIES (kişi / organizasyon / mekan)
 -- =========================================
 CREATE TABLE IF NOT EXISTS entities (
@@ -194,6 +187,8 @@ CREATE TABLE IF NOT EXISTS items (
   origin_source TEXT,                -- 'gmail:sabirli31','localfs','iphone',...
   origin_id     TEXT,                -- message_id / dosya yolu / uuid
   title         TEXT,
+  snippet       TEXT,                -- free text snippet
+  content_hash  TEXT,                -- SHA256(subject + cleaned_body) - deduplication için
   created_at    TIMESTAMPTZ DEFAULT now(),
   event_at      TIMESTAMPTZ,         -- gerçek zaman (email sent, EXIF time)
   lang          TEXT,
@@ -208,11 +203,12 @@ CREATE TABLE IF NOT EXISTS items (
   deleted_at    TIMESTAMPTZ
 );
 
-CREATE INDEX IF NOT EXISTS idx_items_thread    ON items(thread_id);
-CREATE INDEX IF NOT EXISTS idx_items_event_at  ON items(event_at DESC);
-CREATE INDEX IF NOT EXISTS idx_items_type      ON items(source_type);
-CREATE INDEX IF NOT EXISTS idx_items_deleted   ON items(deleted_at);
-CREATE INDEX IF NOT EXISTS idx_items_active_ev ON items(event_at DESC) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_items_thread      ON items(thread_id);
+CREATE INDEX IF NOT EXISTS idx_items_event_at    ON items(event_at DESC);
+CREATE INDEX IF NOT EXISTS idx_items_type        ON items(source_type);
+CREATE INDEX IF NOT EXISTS idx_items_deleted     ON items(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_items_active_ev   ON items(event_at DESC) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_items_content_hash ON items(content_hash);
 
 -- entity_relations.source_item_id → items FK
 ALTER TABLE entity_relations
@@ -227,9 +223,18 @@ CREATE TABLE IF NOT EXISTS emails (
   to_addrs       TEXT[] DEFAULT '{}',
   cc_addrs       TEXT[] DEFAULT '{}',
   sender_domain  TEXT,
-  has_attachment BOOLEAN DEFAULT FALSE
+  has_attachment BOOLEAN DEFAULT FALSE,
+  raw_text       TEXT,                -- Ham plain text içeriği
+  raw_html       TEXT,                -- Ham HTML içeriği
+  cleaned_body   TEXT,                -- Temizlenmiş gövde metni
+  content_hash   TEXT,                -- SHA256(subject + cleaned_body)
+  subject        TEXT,                -- Email konusu
+  plain_text_top TEXT,               -- İlk düz metin parçası
+  plain_text_full TEXT              -- Tam düz metin içeriği
 );
 CREATE INDEX IF NOT EXISTS idx_emails_domain ON emails(sender_domain);
+CREATE INDEX IF NOT EXISTS idx_emails_content_hash ON emails(content_hash);
+CREATE INDEX IF NOT EXISTS idx_emails_message_id ON emails(message_id);
 
 -- DOCS
 CREATE TABLE IF NOT EXISTS docs (
@@ -260,14 +265,14 @@ CREATE TABLE IF NOT EXISTS voices (
 -- =========================================
 -- CHUNKS (aranabilir metin) + hibrit indeksler
 -- =========================================
--- Not: multilingual e5-small varsayımıyla 384-dim
+-- Not: bge-m3 model ile 1024-dim
 CREATE TABLE IF NOT EXISTS chunks (
   chunk_id    BIGSERIAL PRIMARY KEY,
   item_id     BIGINT NOT NULL REFERENCES items(item_id) ON DELETE CASCADE,
   ord         INT NOT NULL,            -- 0=subject/title, 1=ilk gövde parçası, ...
   text        TEXT NOT NULL,
   lang        TEXT,
-  embedding   vector(384),
+  embedding   vector(1024),
   bm25_tsv    tsvector
 );
 CREATE INDEX IF NOT EXISTS idx_chunks_item     ON chunks(item_id);

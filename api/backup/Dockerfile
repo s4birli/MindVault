@@ -9,11 +9,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code directly to /app
-COPY app/ ./app/
+# KODU /app/api altına kopyalıyoruz (kritik!)
+COPY . ./api
 
 ENV PORT=8000
 EXPOSE 8000
 
-# Run the FastAPI application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# FastAPI uygulamasını paket adıyla çalıştır
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]

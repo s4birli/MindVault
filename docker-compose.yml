@@ -1,4 +1,40 @@
 services:
+
+  db:
+    image: ankane/pgvector:latest
+    container_name: mindvault_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: mindvault
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data  # PostgreSQL verilerini kalıcı hale getir
+      - ./scripts:/app/scripts
+    networks:
+      - mindvault_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d mindvault"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  minio:
+    image: minio/minio:latest
+    container_name: mindvault_minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000" # S3 endpoint
+      - "9001:9001" # MinIO console
+    volumes:
+      - minio_data:/data
+    networks:
+      - mindvault_net
+    restart: unless-stopped
+
   mindvault_ui:
     build: ./ui
     container_name: mindvault_ui
@@ -30,6 +66,16 @@ services:
     container_name: mindvault_api
     ports:
       - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/mindvault
+      - JWT_SECRET=your-super-secret-jwt-signing-key-change-this-in-production
+      - JWT_ISS=mindvault-api
+      - JWT_AUD=mindvault-client
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+    depends_on:
+      db:
+        condition: service_healthy
     networks:
       - mindvault_net
     restart: unless-stopped
@@ -47,6 +93,24 @@ services:
     networks:
       - mindvault_net
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    # Apple Silicon için doğru mimariyi seçsin:
+    platform: linux/arm64/v8
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama          # modeller burada cache’lenir
+    environment:
+      - OLLAMA_NUM_PARALLEL=4         # aynı anda kaç istek işlesin
+      - OLLAMA_MAX_LOADED_MODELS=2
+    restart: unless-stopped
 networks:
   mindvault_net:
     driver: bridge
+
+volumes:
+  db_data:
+  minio_data:
+  ollama:
